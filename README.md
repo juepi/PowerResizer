@@ -36,7 +36,7 @@ Files which already start with the new prefix will not be renamed.
 Result will be LEAFDIRNAME + "_" + Original-Filename  
 Main purpose is to get some overview in flat WordPress Media library.
 
-##PARAMETER Quality
+## PARAMETER Quality
 Alternatively to compress photos to a target file size, you can use this optional param to manually set a desired JPEG compression level.  
 Values 0 to 100 are accepted, value 0 is the default which means target file size as defined in "User Settings".
 
