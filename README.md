@@ -31,9 +31,9 @@ Only supported when InputPath is a folder. Work recursively through all subfolde
 **Handle with care!**
 
 ## PARAMETER AddPrefix
-Will add the directory name, where the handled photo is located, as file name prefix.
-Files which already start with the new prefix will not be renamed.
-Result will be LEAFDIRNAME + "_" + Original-Filename
+Will add the directory name, where the handled photo is located, as file name prefix.  
+Files which already start with the new prefix will not be renamed.  
+Result will be LEAFDIRNAME + "_" + Original-Filename  
 Main purpose is to get some overview in flat WordPress Media library.
 
 ## EXAMPLE
