@@ -40,6 +40,10 @@ Files which already start with the new prefix will not be renamed.
 Result will be DIRNAME + "_" + Original-Filename
 Main purpose is to get some overview in flat WordPress Media library.
 
+.PARAMETER Quality
+Alternatively to compress photos to a target file size, you can use this param
+to manually set a desired JPEG compression level. Values 0 to 100 are accepted, value 0
+is the default which means target file size as defined in "User Settings".
 
 .EXAMPLE
 
@@ -66,7 +70,10 @@ Param
     [Parameter(Mandatory=$false)]
     [switch]$Recurse,
     [Parameter(Mandatory=$false)]
-    [switch]$AddPrefix
+    [switch]$AddPrefix,
+    [Parameter(Mandatory=$false)]
+    [ValidateRange(0,100)]
+    [Int]$Quality = 0
 )
 #endregion ####################################################################
 
@@ -78,7 +85,7 @@ Add-Type -Assembly System.Drawing
 #region ##################### User Settings ###################################
 
 # Input Image file name extensions that will be handled
-$SupportedInputFileExt = @('*.jpg','*.jpeg','*.png','*.tif','*.tiff')
+$SupportedInputFileExt = @('*.jpg','*.jpeg','*.png','*.tif','*.tiff','*.bmp')
 
 # Minimum file size for Images to be edited by ExifIron
 # ExifIron can only rotate and optimize camera / handy photos, which are usually quite large..
@@ -86,11 +93,12 @@ $SupportedInputFileExt = @('*.jpg','*.jpeg','*.png','*.tif','*.tiff')
 
 # Default desired JPG output file sizes depending on original dimesnions of the input file
 # Input Pictures with small dimensions will not be resized but only compressed (if necessary)
+# to the desired target file size (in kB)
 [Int]$SmallPicInMaxLongSidePx = 1000
-[Int]$SmallPicOutTargetSizeKB = 200
+[Int]$SmallPicOutTargetSizeKB = 100
 # Large input pictures will be resized to desired dimension (the longer side, aspect ratio remains)
-# and stored with a compression to reach the desired output file size
-[Int]$LargePicOutTargetSizeKB = 400
+# and stored with a compression to reach the desired output file size (in kB)
+[Int]$LargePicOutTargetSizeKB = 250
 [Int]$LargePicOutScaledLongSidePx = 1280
 
 #endregion ####################################################################
@@ -116,6 +124,8 @@ function mogrify
         [Parameter(Mandatory=$false)]
         [Int]$LongSidePx=0,
         [Parameter(Mandatory=$false)]
+        [Int]$Quality=0,
+        [Parameter(Mandatory=$false)]
         [Int]$SizeKB = "500"
     )
 
@@ -135,15 +145,25 @@ function mogrify
     {
         $FullIMParams += $("-resize $($LongSidePx)x$($LongSidePx)" + '>')
     }
-    # If Input file is a PNG, save as JPG
-    if ( $InputFile.Extension -imatch "png" )
+    # If Input file is not a JPG, convert to JPG
+    if ( -not ($InputFile.Extension -imatch "jpg|jpeg") )
     {
-        Write-Host "Converting PNG Inputfile to JPG.." -ForegroundColor Green
+        Write-Host "Converting $($InputFile.Extension) Inputfile to JPG.." -ForegroundColor Green
         $FullIMParams += "-format jpg"
         $RemoveInputFile = $true
     }
-    # Add desired file size
-    $FullIMParams += "-define jpeg:extent=$($SizeKB)KB"
+    # Set desired compression quality or target file size
+    if ($Local:Quality -eq 0)
+    {
+        # No quality param given, use user defined target file size
+        $FullIMParams += "-define jpeg:extent=$($SizeKB)KB"
+    }
+    else
+    {
+        # use given quality value
+        $FullIMParams += "-quality $Local:Quality"
+    }
+
     # Add file with full path
     $FullIMParams += "`"$($InputFile.FullName)`""
 
@@ -263,6 +283,17 @@ function get-LongsideImagePx
 
 #region ############################## Main Script #####################################
 
+# Test if external binaries are available
+if (-not (Test-Path $ImgMgk -PathType Leaf))
+{
+    Write-Error "Required ImageMagick binary not found! Check System Settings!" -ErrorAction Stop
+}
+if (-not (Test-Path $ExifIron -PathType Leaf))
+{
+    Write-Error "Required ExifIron (PhotoMolo) binary not found! Check System Settings!" -ErrorAction Stop
+}
+
+
 # Analyze InputPath and extract files to handle
 if (Test-Path $InputPath -PathType Container)
 {
@@ -301,7 +332,7 @@ $HandleItems | ForEach-Object {
     # Get Pixelcount of the longer image side
     [Int]$PixCount = get-LongsideImagePx -file $InputFile.FullName
 
-    Write-Host "File: $($InputFile.Name)`nFilesize: $($InputFile.Length / 1KB) kB`nLong Side: $PixCount px" -ForegroundColor Cyan
+    Write-Host "File Size: $([math]::Round($InputFile.Length / 1KB)) kB`nLong Side: $PixCount px" -ForegroundColor Cyan
 
     # Rename input file if AddPrefix $true
     if ($AddPrefix)
@@ -331,13 +362,29 @@ $HandleItems | ForEach-Object {
     # Check if we have a small or a large pic
     if ($PixCount -gt $SmallPicInMaxLongSidePx)
     {
-        Write-Host "Resizing and compressing large image file with ImageMagick (Targetsize $($LargePicOutTargetSizeKB)kB)" -ForegroundColor Green
-        mogrify -file $InputFile.FullName -LongSidePx $LargePicOutScaledLongSidePx -SizeKB $LargePicOutTargetSizeKB
+        if ($Quality -ne 0)
+        {
+            Write-Host "Resizing and compressing large image file with ImageMagick (Target Quality $Quality)" -ForegroundColor Green
+            mogrify -file $InputFile.FullName -LongSidePx $LargePicOutScaledLongSidePx -Quality $Quality
+        }
+        else
+        {
+            Write-Host "Resizing and compressing large image file with ImageMagick (Targetsize $($LargePicOutTargetSizeKB)kB)" -ForegroundColor Green
+            mogrify -file $InputFile.FullName -LongSidePx $LargePicOutScaledLongSidePx -SizeKB $LargePicOutTargetSizeKB
+        }
     }
     else
     {
-        Write-Host "Compressing small image file with ImageMagick (Targetsize $($SmallPicOutTargetSizeKB)kB)" -ForegroundColor Green
-        mogrify -file $InputFile.FullName -SizeKB $SmallPicOutTargetSizeKB
+        if ($Quality -ne 0)
+        {
+            Write-Host "Compressing small image file with ImageMagick (Target Quality $Quality)" -ForegroundColor Green
+            mogrify -file $InputFile.FullName -Quality $Quality
+        }
+        else
+        {
+            Write-Host "Compressing small image file with ImageMagick (Targetsize $($SmallPicOutTargetSizeKB)kB)" -ForegroundColor Green
+            mogrify -file $InputFile.FullName -SizeKB $SmallPicOutTargetSizeKB
+        }
     }
     Write-Host "PowerResizer successfully handled $($InputFile.Name)." -ForegroundColor Green
     Write-Host "----------------------------------------------------------------------------"
