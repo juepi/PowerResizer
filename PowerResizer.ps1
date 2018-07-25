@@ -34,6 +34,13 @@ If InputPath is a Folder, all files with supported extensions will be treated.
 Only supported when InputPath is a folder. Work recursively through all subfolders.
 Handle with care!
 
+.PARAMETER AddPrefix
+Will add the directory name, where the handled photo is located, as file name prefix.
+Files which already start with the new prefix will not be renamed.
+Result will be DIRNAME + "_" + Original-Filename
+Main purpose is to get some overview in flat WordPress Media library.
+
+
 .EXAMPLE
 
 C:\PS> .\PowerResizer.ps1 -InputPath 'c:\Pics\to convert\convertme.bmp'
@@ -41,6 +48,11 @@ C:\PS> .\PowerResizer.ps1 -InputPath 'c:\Pics\to convert\convertme.bmp'
 .EXAMPLE
 
 C:\PS> .\PowerResizer.ps1 -InputPath 'c:\Pics\to convert\recursively' -Recurse
+
+.EXAMPLE
+
+C:\PS> .\PowerResizer.ps1 -InputPath 'c:\Pics\EventXY' -AddPrefix
+Result: Photo "abc.jpg" will be renamed to "EventXY_abc.jpg"
 
 #>
 
@@ -52,7 +64,9 @@ Param
     [ValidateScript({if (Test-Path $_){return $true} else {throw "InputPath does not exist."}})]
     [string]$InputPath,
     [Parameter(Mandatory=$false)]
-    [switch]$Recurse
+    [switch]$Recurse,
+    [Parameter(Mandatory=$false)]
+    [switch]$AddPrefix
 )
 #endregion ####################################################################
 
@@ -76,7 +90,7 @@ $SupportedInputFileExt = @('*.jpg','*.jpeg','*.png','*.tif','*.tiff')
 [Int]$SmallPicOutTargetSizeKB = 200
 # Large input pictures will be resized to desired dimension (the longer side, aspect ratio remains)
 # and stored with a compression to reach the desired output file size
-[Int]$LargePicOutTargetSizeKB = 500
+[Int]$LargePicOutTargetSizeKB = 400
 [Int]$LargePicOutScaledLongSidePx = 1280
 
 #endregion ####################################################################
@@ -288,6 +302,23 @@ $HandleItems | ForEach-Object {
     [Int]$PixCount = get-LongsideImagePx -file $InputFile.FullName
 
     Write-Host "File: $($InputFile.Name)`nFilesize: $($InputFile.Length / 1KB) kB`nLong Side: $PixCount px" -ForegroundColor Cyan
+
+    # Rename input file if AddPrefix $true
+    if ($AddPrefix)
+    {
+        $LeafDirName = $(Split-Path -Leaf $InputFile.Directory)
+        $NewFileName = $($LeafDirName + '_' + $InputFile.Name)
+
+        # Rename file only if it doesn't already have the right prefix
+        if ($InputFile.Name -notmatch "^$LeafDirName")
+        {
+            Write-Host "Renaming file to: $NewFileName" -ForegroundColor Yellow
+            Rename-Item -Path $InputFile.FullName -NewName $NewFileName -ErrorAction Stop
+            # Update InputFile
+            $InputFile = Get-Item ($InputFile.Directory.ToString() + '\' + $NewFileName)
+        }
+    }
+
 
     # ExifIron only for JPGs
     if ($InputFile.Extension -imatch ".jpg")

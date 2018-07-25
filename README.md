@@ -27,8 +27,14 @@ Input Path might be a single file or a folder.
 If InputPath is a Folder, all files with supported extensions will be treated.
 
 ## PARAMETER Recurse
-Only supported when InputPath is a folder. Work recursively through all subfolders.
-Handle with care!
+Only supported when InputPath is a folder. Work recursively through all subfolders.  
+**Handle with care!**
+
+## PARAMETER AddPrefix
+Will add the directory name, where the handled photo is located, as file name prefix.
+Files which already start with the new prefix will not be renamed.
+Result will be LEAFDIRNAME + "_" + Original-Filename
+Main purpose is to get some overview in flat WordPress Media library.
 
 ## EXAMPLE
 
@@ -37,6 +43,15 @@ Handle with care!
 ## EXAMPLE
 
     C:\PS> .\PowerResizer.ps1 -InputPath 'c:\Pics\to convert\recursively' -Recurse
+
+## EXAMPLE
+
+    C:\PS> .\PowerResizer.ps1 -InputPath 'c:\Pics\EventXY' -AddPrefix  
+Result: Photo "abc.jpg" will be renamed to "EventXY_abc.jpg"
+
+## Configuration
+For Image size and quality (filesize) settings update the Variables in the "User Settings" section.  
+In addition, you will need to make sure that the paths to the external binaries match in the "System Settings" section.  
 
 ## HINT
 
